@@ -1,0 +1,49 @@
+/* ── Design tokens ── */
+:root {
+  --bg-0: #0a0a0f;
+  --bg-1: #111118;
+  --bg-2: #18181f;
+  --bg-3: #1f1f28;
+  --bg-4: #26262f;
+
+  --gold:       #c9a84c;
+  --gold-dim:   #a8863a;
+  --gold-light: #e8c97a;
+  --gold-glow:  rgba(201,168,76,.15);
+
+  --t0: #ffffff;
+  --t1: #e0ddd5;
+  --t2: #a09890;
+  --t3: #605850;
+
+  --red:   #e05252;
+  --green: #4caf87;
+  --blue:  #5282e0;
+
+  --border:        rgba(201,168,76,.12);
+  --border-bright: rgba(201,168,76,.28);
+
+  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --radius-sm: 6px;
+  --radius:    10px;
+  --radius-lg: 16px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body, #root {
+  height: 100%;
+  background: var(--bg-0);
+  color: var(--t1);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--bg-1); }
+::-webkit-scrollbar-thumb { background: var(--bg-4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--gold-dim); }
