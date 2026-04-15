@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.52.0",
+    "@azure/identity": "^4.13.1",
     "concurrently": "^9.1.2",
     "express": "^4.21.2",
     "googleapis": "^148.0.0",
