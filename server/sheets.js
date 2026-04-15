@@ -8,11 +8,17 @@ const SPREADSHEET_ID = '12wbKrHrHqV_UtToojXlRQHopBRo1nypriT9C4FQAbPY';
 const SHEET_NAME     = 'Control de Viáticos - Argenteo Mining SA';
 
 function getAuth() {
+  const scopes = ['https://www.googleapis.com/auth/spreadsheets'];
+
+  /* En Vercel las credenciales vienen como variable de entorno */
+  if (process.env.GOOGLE_SERVICE_ACCOUNT) {
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+    return new google.auth.GoogleAuth({ credentials, scopes });
+  }
+
+  /* En local usa el archivo */
   const keyFile = path.join(__dirname, 'service-account.json');
-  return new google.auth.GoogleAuth({
-    keyFile,
-    scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-  });
+  return new google.auth.GoogleAuth({ keyFile, scopes });
 }
 
 /**
