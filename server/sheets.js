@@ -1,33 +1,34 @@
-import { ClientSecretCredential } from '@azure/identity';
+import { google } from 'googleapis';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
-const GRAPH_BASE   = 'https://graph.microsoft.com/v1.0';
-const EXCEL_FILE_ID = process.env.EXCEL_FILE_ID;    /* ID del archivo en OneDrive */
-const DRIVE_ID      = process.env.EXCEL_DRIVE_ID;   /* opcional: drive específico */
-const TABLE_NAME    = process.env.EXCEL_TABLE_NAME || 'Tabla1'; /* nombre de la tabla en Excel */
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-function getCredential() {
-  return new ClientSecretCredential(
-    process.env.AZURE_TENANT_ID,
-    process.env.AZURE_CLIENT_ID,
-    process.env.AZURE_CLIENT_SECRET,
-  );
-}
+const SPREADSHEET_ID = '12wbKrHrHqV_UtToojXlRQHopBRo1nypriT9C4FQAbPY';
+const SHEET_NAME     = 'Control de Viáticos - Argenteo Mining SA';
 
-async function getToken() {
-  const cred  = getCredential();
-  const token = await cred.getToken('https://graph.microsoft.com/.default');
-  return token.token;
+function getAuth() {
+  const scopes = ['https://www.googleapis.com/auth/spreadsheets'];
+
+  /* En Vercel las credenciales vienen como variable de entorno */
+  if (process.env.GOOGLE_SERVICE_ACCOUNT) {
+    const credentials = JSON.parse(process.env.GOOGLE_SERVICE_ACCOUNT);
+    return new google.auth.GoogleAuth({ credentials, scopes });
+  }
+
+  /* En local usa el archivo */
+  const keyFile = path.join(__dirname, 'service-account.json');
+  return new google.auth.GoogleAuth({ keyFile, scopes });
 }
 
 /**
- * Agrega una fila a la tabla de Excel Online.
- * Columnas: Fecha, Factura, Proveedor, ID Fiscal, Descripción,
- *           Subtotal, Impuestos, Total, Pago, Categoría, Motivo, Zona
+ * Agrega una fila a la tabla de Google Sheets copiando el formato de la fila anterior.
  */
 export async function appendViatico(data) {
-  const token = await getToken();
+  const auth   = getAuth();
+  const sheets = google.sheets({ version: 'v4', auth });
 
-  const values = [[
+  const row = [
     data.fecha,
     data.factura,
     data.proveedor,
@@ -40,28 +41,48 @@ export async function appendViatico(data) {
     data.categoria,
     data.motivo,
     data.zona,
-  ]];
+  ];
 
-  /* Construir URL según si se usa drive específico o el drive del usuario */
-  const itemPath = DRIVE_ID
-    ? `${GRAPH_BASE}/drives/${DRIVE_ID}/items/${EXCEL_FILE_ID}`
-    : `${GRAPH_BASE}/me/drive/items/${EXCEL_FILE_ID}`;
-
-  const url = `${itemPath}/workbook/tables/${TABLE_NAME}/rows/add`;
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type':  'application/json',
-    },
-    body: JSON.stringify({ values }),
+  /* ── 1. Obtener sheetId numérico ── */
+  const meta = await sheets.spreadsheets.get({
+    spreadsheetId: SPREADSHEET_ID,
+    fields: 'sheets(properties(sheetId,title))',
   });
 
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Graph API error ${res.status}: ${err}`);
+  const sheetMeta = meta.data.sheets.find(s => s.properties.title === SHEET_NAME);
+  if (!sheetMeta) throw new Error(`Hoja "${SHEET_NAME}" no encontrada.`);
+  const sheetId = sheetMeta.properties.sheetId;
+
+  /* ── 2. Encontrar la primera fila vacía ── */
+  const existing = await sheets.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `'${SHEET_NAME}'!A:A`,
+  });
+  const lastRow    = (existing.data.values || []).length;
+  const newRowIndex = lastRow;
+
+  /* ── 3. Copiar formato de la fila anterior ── */
+  if (lastRow > 1) {
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId: SPREADSHEET_ID,
+      requestBody: {
+        requests: [{
+          copyPaste: {
+            source:      { sheetId, startRowIndex: newRowIndex - 1, endRowIndex: newRowIndex,     startColumnIndex: 0, endColumnIndex: 12 },
+            destination: { sheetId, startRowIndex: newRowIndex,     endRowIndex: newRowIndex + 1, startColumnIndex: 0, endColumnIndex: 12 },
+            pasteType: 'PASTE_FORMAT',
+            pasteOrientation: 'NORMAL',
+          },
+        }],
+      },
+    });
   }
 
-  return await res.json();
+  /* ── 4. Escribir los valores ── */
+  await sheets.spreadsheets.values.update({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `'${SHEET_NAME}'!A${lastRow + 1}:L${lastRow + 1}`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [row] },
+  });
 }
